@@ -2,8 +2,9 @@ net: "D:/_test/train/train_val.prototxt"
 test_iter: 35
 test_interval: 250
 base_lr: 0.001
-lr_policy: "step"
-gamma: 0.1
+lr_policy: "inv"
+gamma: 0.001
+power: 0.75
 stepsize: 100
 display: 20
 max_iter: 5000
