@@ -10,7 +10,7 @@
 #include <string>
 #include <utility>
 #include <vector>
-
+#include <map>
 #ifdef USE_OPENCV
 using namespace caffe;  // NOLINT(build/namespaces)
 using std::string;
@@ -59,6 +59,14 @@ Classifier::Classifier(const string& model_file,
   net_.reset(new Net<float>(model_file, TEST));
   net_->CopyTrainedLayersFrom(trained_file);
 
+#if 0
+  {
+	  NetParameter proto;
+	  ReadProtoFromBinaryFile(trained_file, &proto);
+	  WriteProtoToTextFile(proto, "c:/tmp/_test.txt");
+  }
+#endif
+
   CHECK_EQ(net_->num_inputs(), 1) << "Network should have exactly one input.";
   CHECK_EQ(net_->num_outputs(), 1) << "Network should have exactly one output.";
 
@@ -92,7 +100,7 @@ static bool PairCompare(const std::pair<float, int>& lhs,
 static std::vector<int> Argmax(const std::vector<float>& v, int N) {
   std::vector<std::pair<float, int> > pairs;
   for (size_t i = 0; i < v.size(); ++i)
-    pairs.push_back(std::make_pair(v[i], static_cast<int>(i)));
+    pairs.push_back(std::make_pair(v[i], i));
   std::partial_sort(pairs.begin(), pairs.begin() + N, pairs.end(), PairCompare);
 
   std::vector<int> result;
@@ -136,7 +144,7 @@ void Classifier::SetMean(const string& mean_file) {
     channels.push_back(channel);
     data += mean_blob.height() * mean_blob.width();
   }
-
+  
   /* Merge the separate channels into a single image. */
   cv::Mat mean;
   cv::merge(channels, mean);
@@ -144,7 +152,11 @@ void Classifier::SetMean(const string& mean_file) {
   /* Compute the global mean pixel value and create a mean image
    * filled with this value. */
   cv::Scalar channel_mean = cv::mean(mean);
+  channel_mean[0] = 113.821;
+  channel_mean[1] = 122.954;
+  channel_mean[2] = 125.293;
   mean_ = cv::Mat(input_geometry_, mean.type(), channel_mean);
+ // mean_ = mean;
 }
 
 std::vector<float> Classifier::Predict(const cv::Mat& img) {
@@ -202,7 +214,7 @@ void Classifier::Preprocess(const cv::Mat& img,
     sample = img;
 
   cv::Mat sample_resized;
-  if (sample.size() != input_geometry_)
+  if ( sample.size() != input_geometry_)
     cv::resize(sample, sample_resized, input_geometry_);
   else
     sample_resized = sample;
@@ -216,6 +228,8 @@ void Classifier::Preprocess(const cv::Mat& img,
   cv::Mat sample_normalized;
   cv::subtract(sample_float, mean_, sample_normalized);
 
+  cv::cvtColor(sample_normalized, sample_normalized, cv::COLOR_BGR2RGB);
+  
   /* This operation will write the separate BGR planes directly to the
    * input layer of the network because it is wrapped by the cv::Mat
    * objects in input_channels. */
@@ -227,36 +241,86 @@ void Classifier::Preprocess(const cv::Mat& img,
 }
 
 int main(int argc, char** argv) {
+	/*
   if (argc != 6) {
     std::cerr << "Usage: " << argv[0]
               << " deploy.prototxt network.caffemodel"
               << " mean.binaryproto labels.txt img.jpg" << std::endl;
     return 1;
   }
+  */
 
   ::google::InitGoogleLogging(argv[0]);
-
-  string model_file   = argv[1];
-  string trained_file = argv[2];
-  string mean_file    = argv[3];
-  string label_file   = argv[4];
+  string root = "C:/dev/online/cvdnn/example/cifar10/";
+  string model_file = root + "deploy.prototxt";
+  string trained_file = root + "model.caffemodel";
+  string mean_file = root + "mean.binaryproto";
+  string label_file = root + "labels.txt";
   Classifier classifier(model_file, trained_file, mean_file, label_file);
 
-  string file = argv[5];
+  string pathfile = "C:/tmp/list.txt";
 
-  std::cout << "---------- Prediction for "
-            << file << " ----------" << std::endl;
-
-  cv::Mat img = cv::imread(file, -1);
-  CHECK(!img.empty()) << "Unable to decode image " << file;
-  std::vector<Prediction> predictions = classifier.Classify(img);
-
-  /* Print the top N predictions. */
-  for (size_t i = 0; i < predictions.size(); ++i) {
-    Prediction p = predictions[i];
-    std::cout << std::fixed << std::setprecision(4) << p.second << " - \""
-              << p.first << "\"" << std::endl;
+  vector< string> paths;
+  {
+	  FILE* fd = fopen(pathfile.c_str(), "rb");
+	  if (fd == NULL)
+	  {
+		  std::cout << "can't found " << pathfile << std::endl;
+		  return 0;
+	  }
+	  char buf[1024];
+	  while (fgets(buf, 1024, fd) != NULL)
+	  {
+		  int len = strlen(buf);
+		  int k;
+		  for (k = len - 1; k >= 0; k--)
+		  {
+			  if (buf[k] != '\r' && buf[k] != '\n')
+				  break;
+		  }
+		  if(k + 1 < 1024)
+			  buf[k + 1] = '\0';
+		  paths.push_back(buf);
+	  }
+	  fclose(fd);
   }
+
+  map<string, int> found;
+  for (int pathidx = 0; pathidx < paths.size(); pathidx++)
+  {
+	  string file = paths[pathidx];
+	  std::cout << file << std::endl;
+	  cv::Mat img = cv::imread(file, 1);
+	  //cv::flip(img, img, 1);
+	  CHECK(!img.empty()) << "Unable to decode image " << file;
+	  std::vector<Prediction> predictions = classifier.Classify(img,10);
+
+	  Prediction p = predictions[0];
+	 // std::cout << p.first << std::endl;
+	  map<string, int>::iterator itr = found.find(p.first);
+	  if (itr == found.end())
+		  found[p.first] = 1;
+	  else
+		  itr->second++;
+	  /* Print the top N predictions. */
+	  /*
+	  for (size_t i = 0; i < predictions.size(); ++i) {
+		  Prediction p = predictions[i];
+		  std::cout << std::fixed << std::setprecision(4) << p.second << " - \""
+			  << p.first << "\"" << std::endl;
+	  }
+	  */
+  }
+
+  {
+	  map<string, int>::iterator itr;
+	  for (itr = found.begin(); itr != found.end(); itr++)
+	  {
+		  std::cout << std::fixed << std::setprecision(4) << itr->second * 1.0 / paths.size() << " - \"" << itr->first << "\"" << std::endl;
+	  }
+  }
+
+
 }
 #else
 int main(int argc, char** argv) {
