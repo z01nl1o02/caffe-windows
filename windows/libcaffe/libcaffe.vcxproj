@@ -94,6 +94,7 @@
     <ClCompile Include="..\..\src\caffe\layer.cpp" />
     <ClCompile Include="..\..\src\caffe\layers\absval_layer.cpp" />
     <ClCompile Include="..\..\src\caffe\layers\accuracy_layer.cpp" />
+    <ClCompile Include="..\..\src\caffe\layers\all_pass_layer.cpp" />
     <ClCompile Include="..\..\src\caffe\layers\arccos_layer.cpp" />
     <ClCompile Include="..\..\src\caffe\layers\argmax_layer.cpp" />
     <ClCompile Include="..\..\src\caffe\layers\axpy_layer.cpp" />
@@ -421,6 +422,7 @@
     <CudaCompile Include="..\..\src\caffe\util\math_functions.cu" />
   </ItemGroup>
   <ItemGroup>
+    <CudaCompile Include="..\..\src\caffe\layers\all_pass_layer.cu" />
     <CudaCompile Include="..\..\src\caffe\layers\arccos_layer.cu" />
     <CudaCompile Include="..\..\src\caffe\layers\axpy_layer.cu" />
     <CudaCompile Include="..\..\src\caffe\layers\bn_layer.cu" />

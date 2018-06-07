@@ -60,9 +60,6 @@
     <ClCompile Include="..\..\src\caffe\util\benchmark.cpp">
       <Filter>src\util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\caffe\proto\caffe.pb.cc">
-      <Filter>src\proto</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\caffe\blob.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -473,6 +470,12 @@
     </ClCompile>
     <ClCompile Include="..\..\src\caffe\layers\label_specific_add.cpp">
       <Filter>src\layers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\caffe\layers\all_pass_layer.cpp">
+      <Filter>src\layers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\caffe\proto\caffe.pb.cc">
+      <Filter>include\proto</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1145,6 +1148,9 @@
       <Filter>cu\layers</Filter>
     </CudaCompile>
     <CudaCompile Include="..\..\src\caffe\layers\channel_scale_layer.cu">
+      <Filter>cu\layers</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\..\src\caffe\layers\all_pass_layer.cu">
       <Filter>cu\layers</Filter>
     </CudaCompile>
   </ItemGroup>

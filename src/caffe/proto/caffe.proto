@@ -454,7 +454,16 @@ message LayerParameter {
   optional LabelSpecificAffineParameter label_specific_affine_param = 238;
   optional LabelSpecificHardMarginParameter label_specific_hard_margin_param = 239;
   optional LabelSpecificAddParameter label_specific_add_param = 241;
+  
+  
+  optional AllPassParameter all_pass_param = 243;
 }
+
+message AllPassParameter {  
+  optional float key = 1 [default = 0];  
+}
+
+//DEBUG_AP(this->layer_param_.all_pass_param().key());
 
 // Message that stores parameters used to apply transformation
 // to the data layer's data
