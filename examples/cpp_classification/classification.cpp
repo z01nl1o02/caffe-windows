@@ -10,25 +10,26 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <map>
 
 #ifdef USE_OPENCV
 using namespace caffe;  // NOLINT(build/namespaces)
 using std::string;
 
 /* Pair (label, confidence) representing a prediction. */
-typedef std::pair<string, float> Prediction;
+typedef std::pair<int, float> Prediction;
 
 class Classifier {
  public:
-  Classifier(const string& model_file,
-             const string& trained_file,
-             const string& mean_file,
-             const string& label_file);
+	 Classifier(const string& model_file,
+		 const string& trained_file,
+		 const string& mean_rgb);
 
   std::vector<Prediction> Classify(const cv::Mat& img, int N = 5);
 
  private:
   void SetMean(const string& mean_file);
+  void SetMean(float meanR, float meanG, float meanB);
 
   std::vector<float> Predict(const cv::Mat& img);
 
@@ -42,13 +43,14 @@ class Classifier {
   cv::Size input_geometry_;
   int num_channels_;
   cv::Mat mean_;
+#if 0
   std::vector<string> labels_;
+#endif
 };
 
 Classifier::Classifier(const string& model_file,
                        const string& trained_file,
-                       const string& mean_file,
-                       const string& label_file) {
+					   const string& mean_rgb) {
 #ifdef CPU_ONLY
   Caffe::set_mode(Caffe::CPU);
 #else
@@ -69,9 +71,23 @@ Classifier::Classifier(const string& model_file,
   input_geometry_ = cv::Size(input_layer->width(), input_layer->height());
 
   /* Load the binaryproto mean file. */
+#if 1
+  {
+	  string tmpRGB = mean_rgb;
+	  int pos = tmpRGB.find(',');
+	  float meanR = atof(tmpRGB.substr(0, pos).c_str());
+	  tmpRGB = tmpRGB.substr(pos + 1);
+	  pos = tmpRGB.find(',');
+	  float meanG = atof(tmpRGB.substr(0, pos).c_str());
+	  tmpRGB = tmpRGB.substr(pos + 1);
+	  float meanB = atof(tmpRGB.c_str());
+	  SetMean(meanR, meanG, meanB);
+  }
+#else
   SetMean(mean_file);
-
+#endif
   /* Load labels. */
+#if 0
   std::ifstream labels(label_file.c_str());
   CHECK(labels) << "Unable to open labels file " << label_file;
   string line;
@@ -81,6 +97,7 @@ Classifier::Classifier(const string& model_file,
   Blob<float>* output_layer = net_->output_blobs()[0];
   CHECK_EQ(labels_.size(), output_layer->channels())
     << "Number of labels is different from the output layer dimension.";
+#endif
 }
 
 static bool PairCompare(const std::pair<float, int>& lhs,
@@ -105,12 +122,12 @@ static std::vector<int> Argmax(const std::vector<float>& v, int N) {
 std::vector<Prediction> Classifier::Classify(const cv::Mat& img, int N) {
   std::vector<float> output = Predict(img);
 
-  N = std::min<int>(labels_.size(), N);
+//  N = std::min<int>(labels_.size(), N);
   std::vector<int> maxN = Argmax(output, N);
   std::vector<Prediction> predictions;
   for (int i = 0; i < N; ++i) {
     int idx = maxN[i];
-    predictions.push_back(std::make_pair(labels_[idx], output[idx]));
+    predictions.push_back(std::make_pair(idx, output[idx]));
   }
 
   return predictions;
@@ -145,6 +162,12 @@ void Classifier::SetMean(const string& mean_file) {
    * filled with this value. */
   cv::Scalar channel_mean = cv::mean(mean);
   mean_ = cv::Mat(input_geometry_, mean.type(), channel_mean);
+}
+
+
+void Classifier::SetMean(float meanR, float meanG, float meanB) {
+
+	mean_ = cv::Mat(input_geometry_, CV_32FC3, cv::Scalar(meanR, meanG, meanB));
 }
 
 std::vector<float> Classifier::Predict(const cv::Mat& img) {
@@ -213,8 +236,12 @@ void Classifier::Preprocess(const cv::Mat& img,
   else
     sample_resized.convertTo(sample_float, CV_32FC1);
 
+#if 0
+  cv::Mat sample_normalized = sample_float.clone();
+#else
   cv::Mat sample_normalized;
   cv::subtract(sample_float, mean_, sample_normalized);
+#endif
 
   /* This operation will write the separate BGR planes directly to the
    * input layer of the network because it is wrapped by the cv::Mat
@@ -227,36 +254,90 @@ void Classifier::Preprocess(const cv::Mat& img,
 }
 
 int main(int argc, char** argv) {
-  if (argc != 6) {
-    std::cerr << "Usage: " << argv[0]
-              << " deploy.prototxt network.caffemodel"
-              << " mean.binaryproto labels.txt img.jpg" << std::endl;
-    return 1;
-  }
-
   ::google::InitGoogleLogging(argv[0]);
+  string model_file = "d:/dev/caffe-win/build/x64/Release/cifar/bvlc_alexnet/deploy.prototxt";
+  string trained_file = "d:/dev/caffe-win/build/x64/Release/cifar/bvlc_alexnet/models/cifar_alexnet_iter_32400.caffemodel";
+  string mean_rgb = "113.821,122.954,125.293"; //same order as train_val.prototxt
+  string root_path = "g:/dataset/cifar/test/";
+  string listfile = "g:/dataset/cifar/test.txt"; //same as list used in convert_imageset.exe
+  int width_before_crop = 128;
+  int height_before_crop = 128;
+  int width_after_crop = 96;
+  int height_after_crop = 96;
+  Classifier classifier(model_file, trained_file, mean_rgb);
 
-  string model_file   = argv[1];
-  string trained_file = argv[2];
-  string mean_file    = argv[3];
-  string label_file   = argv[4];
-  Classifier classifier(model_file, trained_file, mean_file, label_file);
 
-  string file = argv[5];
-
-  std::cout << "---------- Prediction for "
-            << file << " ----------" << std::endl;
-
-  cv::Mat img = cv::imread(file, -1);
-  CHECK(!img.empty()) << "Unable to decode image " << file;
-  std::vector<Prediction> predictions = classifier.Classify(img);
-
-  /* Print the top N predictions. */
-  for (size_t i = 0; i < predictions.size(); ++i) {
-    Prediction p = predictions[i];
-    std::cout << std::fixed << std::setprecision(4) << p.second << " - \""
-              << p.first << "\"" << std::endl;
+  std::vector<std::pair<std::string, int> > file_list;
+  {
+	  std::ifstream infile(listfile);
+	  std::string line;
+	  size_t pos;
+	  int label;
+	  while (std::getline(infile, line)) {
+		  pos = line.find_last_of(' ');
+		  label = atoi(line.substr(pos + 1).c_str());
+		  file_list.push_back(std::make_pair(line.substr(0, pos), label));
+	  }
   }
+
+  std::vector< std::pair< std::string, bool > > test_list;
+  for (int sample_idx = 0; sample_idx < file_list.size(); sample_idx++)
+  {
+	  string path = root_path + "//" + file_list[sample_idx].first;
+	  cv::Mat img = cv::imread(path, 1);
+	  if (width_before_crop > 0 || height_before_crop > 0)
+	  {
+		  cv::Mat resized;
+		  cv::resize(img, resized, cv::Size(width_before_crop, height_before_crop));
+
+		  int dx = (width_before_crop - width_after_crop) / 2;
+		  int dy = (height_before_crop - height_after_crop) / 2;
+		  cv::Rect roi(dx, dy, width_after_crop, height_after_crop);
+		  img = resized(roi).clone();
+	  }
+
+	  CHECK(!img.empty()) << "Unable to decode image " << path;
+	  std::vector<Prediction> predictions = classifier.Classify(img, 1);
+
+	  /* Print the top N predictions. */
+	  bool hit_flag = false;
+	  for (size_t i = 0; i < predictions.size() && hit_flag == false; ++i) {
+		  Prediction p = predictions[i];
+		  hit_flag = p.first == file_list[sample_idx].second;
+	  }
+	  test_list.push_back(std::make_pair(file_list[sample_idx].first, hit_flag) );
+  }
+
+  std::map<int, int> class2num, class2hit;
+  for (int k = 0; k < test_list.size(); k++)
+  {
+	  string path = test_list[k].first;
+	  bool hit_flag = test_list[k].second;
+	  int label = file_list[k].second;
+	  CHECK(strcmp(path.c_str(), file_list[k].first.c_str()) == 0) << "unmatched compare " << path;
+	  std::map<int, int>::iterator itr = class2num.find(label);
+	  if (itr == class2num.end())
+	  {
+		  class2num[label] = 1;
+		  class2hit[label] = hit_flag == true;
+	  }
+	  else
+	  {
+		  class2num[label] += 1;
+		  class2hit[label] += (hit_flag == true);
+	  }
+  }
+  float total = 0, hit = 0;
+  std::cout << "recalling..." << std::endl;
+  for (int k = 0; k < class2num.size(); k++)
+  {
+	  std::cout << "class " << k << ":" << (float)(class2hit[k]) / class2num[k] << std::endl;
+	  total += class2num[k];
+	  hit += class2hit[k];
+  }
+  std::cout << "in total :" << hit / total << std::endl;
+  return 0;
+
 }
 #else
 int main(int argc, char** argv) {
