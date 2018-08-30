@@ -27,9 +27,11 @@ class Classifier {
 
   std::vector<Prediction> Classify(const cv::Mat& img, int N = 5);
 
+  void SetGrayRatio(float ratio) { gray_ratio_ = ratio; }
  private:
   void SetMean(const string& mean_file);
   void SetMean(float meanR, float meanG, float meanB);
+
 
   std::vector<float> Predict(const cv::Mat& img);
 
@@ -39,6 +41,7 @@ class Classifier {
                   std::vector<cv::Mat>* input_channels);
 
  private:
+	 float gray_ratio_;
   shared_ptr<Net<float> > net_;
   cv::Size input_geometry_;
   int num_channels_;
@@ -56,6 +59,8 @@ Classifier::Classifier(const string& model_file,
 #else
   Caffe::set_mode(Caffe::GPU);
 #endif
+
+  gray_ratio_ = 1.0f;
 
   /* Load the network. */
   net_.reset(new Net<float>(model_file, TEST));
@@ -236,6 +241,8 @@ void Classifier::Preprocess(const cv::Mat& img,
   else
     sample_resized.convertTo(sample_float, CV_32FC1);
 
+  sample_float = sample_float * gray_ratio_;
+
 #if 0
   cv::Mat sample_normalized = sample_float.clone();
 #else
@@ -255,16 +262,25 @@ void Classifier::Preprocess(const cv::Mat& img,
 
 int main(int argc, char** argv) {
   ::google::InitGoogleLogging(argv[0]);
-  string model_file = "d:/dev/caffe-win/build/x64/Release/cifar/bvlc_alexnet/deploy.prototxt";
-  string trained_file = "d:/dev/caffe-win/build/x64/Release/cifar/bvlc_alexnet/models/cifar_alexnet_iter_32400.caffemodel";
-  string mean_rgb = "113.821,122.954,125.293"; //same order as train_val.prototxt
-  string root_path = "g:/dataset/cifar/test/";
-  string listfile = "g:/dataset/cifar/test.txt"; //same as list used in convert_imageset.exe
-  int width_before_crop = 128;
-  int height_before_crop = 128;
-  int width_after_crop = 96;
-  int height_after_crop = 96;
+  string train_root = "D:/dev/caffe-win/Build/x64/Release/js/2/resnet18/";
+  string model_file =  train_root + "deploy.prototxt";
+  string trained_file = train_root + "resnet18_iter_2500.caffemodel";
+  string mean_rgb = "0,0,0"; //same order as train_val.prototxt
+  float gray_ratio = 1.0f;
+  
+  string data_root = "G:/dataset/";
+  string root_path = data_root + "test/";
+  string listfile = data_root + "test.txt"; //same as list used in convert_imageset.exe
+  string error_list_path = data_root + "error.txt"; //show image classified error
+
+
+  int width_before_crop = 72;
+  int height_before_crop = 72;
+  int width_after_crop = 64;
+  int height_after_crop = 64;
   Classifier classifier(model_file, trained_file, mean_rgb);
+
+  classifier.SetGrayRatio(gray_ratio);
 
 
   std::vector<std::pair<std::string, int> > file_list;
@@ -306,6 +322,19 @@ int main(int argc, char** argv) {
 		  hit_flag = p.first == file_list[sample_idx].second;
 	  }
 	  test_list.push_back(std::make_pair(file_list[sample_idx].first, hit_flag) );
+  }
+
+  if (error_list_path != "")
+  {
+	  std::ofstream fout(error_list_path);
+	  assert(fout.is_open());
+	  for (int k = 0; k < test_list.size(); k++)
+	  {
+		  if (test_list[k].second == true)
+			  continue;
+		  fout << root_path + "/" + test_list[k].first << std::endl;
+	  }
+	  fout.close();
   }
 
   std::map<int, int> class2num, class2hit;
