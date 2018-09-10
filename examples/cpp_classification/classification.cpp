@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 #include <map>
+#include "inifile.h"
 
 #ifdef USE_OPENCV
 using namespace caffe;  // NOLINT(build/namespaces)
@@ -42,7 +43,7 @@ class Classifier {
 
  private:
 	 float gray_ratio_;
-  shared_ptr<Net<float> > net_;
+  std::shared_ptr<Net<float> > net_;
   cv::Size input_geometry_;
   int num_channels_;
   cv::Mat mean_;
@@ -260,24 +261,139 @@ void Classifier::Preprocess(const cv::Mat& img,
     << "Input channels are not wrapping the input layer of the network.";
 }
 
+#define INI_READ_STRING(_section, _key) {int ret;\
+	string res = _ini.getStringValue(_section, _key, ret);\
+	std::cout<<_key<<":"<<res<<std::endl;\
+	return res;}
+
+#define INI_READ_FLOAT(_section, _key) {int ret;\
+	float res = _ini.getDoubleValue(_section, _key, ret);\
+	std::cout<<_key<<":"<<res<<std::endl;\
+	return res;}
+
+
+class CONFIG
+{
+	inifile::IniFile _ini;
+public:
+	CONFIG()
+	{
+	}
+	~CONFIG()
+	{
+
+	}
+public:
+	bool load(std::string ini_file_path)
+	{
+		int ret = _ini.load(ini_file_path);
+		std::cout << "load " << ini_file_path << " with exit codes:" << ret << std::endl;
+		return true;
+	}
+public:
+	string train_root()
+	{
+		INI_READ_STRING("model", "root");
+	}
+	string model_file()
+	{
+		INI_READ_STRING("model", "model");
+	}
+	string weight_file()
+	{
+		INI_READ_STRING("model","weight")
+	}
+	string mean()
+	{
+		INI_READ_STRING("transform","mean")
+	}
+	float gray_scale()
+	{
+		INI_READ_FLOAT("transform", "gray_scale")
+	}
+
+	string data_root()
+	{
+		INI_READ_STRING("data", "root")
+	}
+
+	string data_dir()
+	{
+		INI_READ_STRING("data", "data")
+	}
+
+	string list_file()
+	{
+		INI_READ_STRING("data", "list")
+	}
+
+	string error_file()
+	{
+		INI_READ_STRING("out","error")
+	}
+
+	bool crop_size(int& w, int& h)
+	{
+
+		int ret;
+		string wh = _ini.getStringValue("transform", "crop",ret);
+
+		int pos = wh.find(",");
+		w = atoi(wh.substr(0, pos).c_str());
+		h = atoi(wh.substr(pos + 1).c_str());
+		cout << "crop w/h:" << w << "," << h << endl;
+		return true;
+	}
+
+	bool resize_size(int& w, int& h)
+	{
+
+		int ret;
+		string wh = _ini.getStringValue("transform", "resize",ret);
+
+		int pos = wh.find(",");
+		w = atoi(wh.substr(0, pos).c_str());
+		h = atoi(wh.substr(pos + 1).c_str());
+		cout << "resize w/h:" << w << "," << h << endl;
+		return true;
+	}
+};
+
+
 int main(int argc, char** argv) {
   ::google::InitGoogleLogging(argv[0]);
-  string train_root = "D:/dev/caffe-win/Build/x64/Release/js/2/resnet18/";
-  string model_file =  train_root + "deploy.prototxt";
-  string trained_file = train_root + "resnet18_iter_2500.caffemodel";
-  string mean_rgb = "0,0,0"; //same order as train_val.prototxt
-  float gray_ratio = 1.0f;
+
+  CONFIG cfg;
+  if (argc < 2)
+  {
+	  cfg.load("classification.ini");
+  }
+  else
+  {
+	  cfg.load(argv[1]);
+  }
+  string train_root = cfg.train_root();
+  string model_file = train_root + cfg.model_file();
+  string trained_file = train_root + cfg.weight_file();
+  string mean_rgb = cfg.mean(); //same order as train_val.prototxt
+  float gray_ratio = cfg.gray_scale();
   
-  string data_root = "G:/dataset/";
-  string root_path = data_root + "test/";
-  string listfile = data_root + "test.txt"; //same as list used in convert_imageset.exe
-  string error_list_path = data_root + "error.txt"; //show image classified error
+  string data_root = cfg.data_root();
+  string root_path = data_root + cfg.data_dir();
+  string listfile = data_root + cfg.list_file(); //same as list used in convert_imageset.exe
+  string error_list_path = data_root + cfg.error_file(); //show image classified error
 
 
-  int width_before_crop = 72;
-  int height_before_crop = 72;
-  int width_after_crop = 64;
-  int height_after_crop = 64;
+  int width_before_crop;
+  int height_before_crop;
+  int width_after_crop;
+  int height_after_crop;
+
+  cfg.resize_size(width_before_crop, height_before_crop);
+  cfg.crop_size(width_after_crop, height_after_crop);
+
+
+
   Classifier classifier(model_file, trained_file, mean_rgb);
 
   classifier.SetGrayRatio(gray_ratio);

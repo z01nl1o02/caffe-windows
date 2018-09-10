@@ -49,6 +49,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\examples\cpp_classification\classification.cpp" />
+    <ClCompile Include="..\..\examples\cpp_classification\inifile.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\libcaffe\libcaffe.vcxproj">
@@ -59,6 +60,9 @@
       <LinkLibraryDependencies>true</LinkLibraryDependencies>
       <UseLibraryDependencyInputs>true</UseLibraryDependencyInputs>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\examples\cpp_classification\inifile.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Import Project="$(SolutionDir)\CommonSettings.targets" />
