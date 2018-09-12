@@ -1,0 +1,21 @@
+net: "/home/train/vgg/train.prototxt"
+test_iter: 50
+test_interval: 400
+base_lr: 0.0005
+display: 100
+lr_policy: "multistep"
+stepvalue: 5000
+stepvalue: 10000
+max_iter: 20000
+gamma: 0.1
+momentum: 0.9
+weight_decay: 0.0005
+snapshot: 5000
+snapshot_prefix: "/home/train/vgg/models/cifa10"
+#random_seed: 0
+test_initialization: true
+device_id: 3
+solver_mode: GPU
+debug_info:false
+solver_type:SGD
+momentum2:0.99
