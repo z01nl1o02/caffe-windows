@@ -331,6 +331,13 @@ public:
 	{
 		INI_READ_STRING("out","error")
 	}
+	int list_type() //0 relative path in list.txt
+	{
+		int ret;
+		int relpath = _ini.getIntValue("data", "relpath",ret);
+		std::cout << "list relpath " << relpath << std::endl;
+		return relpath;
+	}
 
 	bool crop_size(int& w, int& h)
 	{
@@ -382,7 +389,7 @@ int main(int argc, char** argv) {
   string root_path = data_root + cfg.data_dir();
   string listfile = data_root + cfg.list_file(); //same as list used in convert_imageset.exe
   string error_list_path = data_root + cfg.error_file(); //show image classified error
-
+  int relpath_in_list = cfg.list_type();
 
   int width_before_crop;
   int height_before_crop;
@@ -411,11 +418,18 @@ int main(int argc, char** argv) {
 		  file_list.push_back(std::make_pair(line.substr(0, pos), label));
 	  }
   }
-
-  std::vector< std::pair< std::string, bool > > test_list;
+  struct RES
+  {
+	  string path;
+	  float score;
+	  bool flag_hit;
+  };
+  std::vector< RES > test_list;
   for (int sample_idx = 0; sample_idx < file_list.size(); sample_idx++)
   {
 	  string path = root_path + "//" + file_list[sample_idx].first;
+	  if (relpath_in_list != 0)
+		  path = file_list[sample_idx].first;
 	  cv::Mat img = cv::imread(path, 1);
 	  if (width_before_crop > 0 || height_before_crop > 0)
 	  {
@@ -433,11 +447,20 @@ int main(int argc, char** argv) {
 
 	  /* Print the top N predictions. */
 	  bool hit_flag = false;
+	  float score = 0;
 	  for (size_t i = 0; i < predictions.size() && hit_flag == false; ++i) {
 		  Prediction p = predictions[i];
 		  hit_flag = p.first == file_list[sample_idx].second;
+		 // if (hit_flag)
+		  {
+			  score = p.second;
+		  }
 	  }
-	  test_list.push_back(std::make_pair(file_list[sample_idx].first, hit_flag) );
+	  RES res;
+	  res.path = file_list[sample_idx].first;
+	  res.flag_hit = hit_flag;
+	  res.score = score;
+	  test_list.push_back( res );
   }
 
   if (error_list_path != "")
@@ -446,9 +469,12 @@ int main(int argc, char** argv) {
 	  assert(fout.is_open());
 	  for (int k = 0; k < test_list.size(); k++)
 	  {
-		  if (test_list[k].second == true)
+		  if (test_list[k].flag_hit == true)
 			  continue;
-		  fout << root_path + "/" + test_list[k].first << std::endl;
+		  if (relpath_in_list)
+			  fout << root_path + "/" + test_list[k].path <<"|"<<test_list[k].score<< std::endl;
+		  else
+			  fout << test_list[k].path <<"|"<<test_list[k].score<< std::endl;
 	  }
 	  fout.close();
   }
@@ -456,8 +482,8 @@ int main(int argc, char** argv) {
   std::map<int, int> class2num, class2hit;
   for (int k = 0; k < test_list.size(); k++)
   {
-	  string path = test_list[k].first;
-	  bool hit_flag = test_list[k].second;
+	  string path = test_list[k].path;
+	  bool hit_flag = test_list[k].flag_hit;
 	  int label = file_list[k].second;
 	  CHECK(strcmp(path.c_str(), file_list[k].first.c_str()) == 0) << "unmatched compare " << path;
 	  std::map<int, int>::iterator itr = class2num.find(label);
