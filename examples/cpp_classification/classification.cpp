@@ -335,7 +335,7 @@ public:
 	{
 		int ret;
 		int relpath = _ini.getIntValue("data", "relpath",ret);
-		std::cout << "list relpath " << relpath << std::endl;
+		std::cout << "list relpath: " << (relpath == 0? "no":"yes") << std::endl;
 		return relpath;
 	}
 
@@ -368,144 +368,147 @@ public:
 
 
 int main(int argc, char** argv) {
-  ::google::InitGoogleLogging(argv[0]);
+	::google::InitGoogleLogging(argv[0]);
 
-  CONFIG cfg;
-  if (argc < 2)
-  {
-	  cfg.load("classification.ini");
-  }
-  else
-  {
-	  cfg.load(argv[1]);
-  }
-  string train_root = cfg.train_root();
-  string model_file = train_root + cfg.model_file();
-  string trained_file = train_root + cfg.weight_file();
-  string mean_rgb = cfg.mean(); //same order as train_val.prototxt
-  float gray_ratio = cfg.gray_scale();
-  
-  string data_root = cfg.data_root();
-  string root_path = data_root + cfg.data_dir();
-  string listfile = data_root + cfg.list_file(); //same as list used in convert_imageset.exe
-  string error_list_path = data_root + cfg.error_file(); //show image classified error
-  int relpath_in_list = cfg.list_type();
+	CONFIG cfg;
+	if (argc < 2)
+	{
+		cfg.load("classification.ini");
+	}
+	else
+	{
+		cfg.load(argv[1]);
+	}
+	string train_root = cfg.train_root();
+	string model_file = train_root + cfg.model_file();
+	string trained_file = train_root + cfg.weight_file();
+	string mean_rgb = cfg.mean(); //same order as train_val.prototxt
+	float gray_ratio = cfg.gray_scale();
 
-  int width_before_crop;
-  int height_before_crop;
-  int width_after_crop;
-  int height_after_crop;
+	string data_root = cfg.data_root();
+	string root_path = data_root + cfg.data_dir();
+	string listfile = data_root + cfg.list_file(); //same as list used in convert_imageset.exe
+	string error_list_path = data_root + cfg.error_file(); //show image classified error
+	int relpath_in_list = cfg.list_type();
 
-  cfg.resize_size(width_before_crop, height_before_crop);
-  cfg.crop_size(width_after_crop, height_after_crop);
+	int width_before_crop;
+	int height_before_crop;
+	int width_after_crop;
+	int height_after_crop;
 
-
-
-  Classifier classifier(model_file, trained_file, mean_rgb);
-
-  classifier.SetGrayRatio(gray_ratio);
+	cfg.resize_size(width_before_crop, height_before_crop);
+	cfg.crop_size(width_after_crop, height_after_crop);
 
 
-  std::vector<std::pair<std::string, int> > file_list;
-  {
-	  std::ifstream infile(listfile);
-	  std::string line;
-	  size_t pos;
-	  int label;
-	  while (std::getline(infile, line)) {
-		  pos = line.find_last_of(' ');
-		  label = atoi(line.substr(pos + 1).c_str());
-		  file_list.push_back(std::make_pair(line.substr(0, pos), label));
-	  }
-  }
-  struct RES
-  {
-	  string path;
-	  float score;
-	  bool flag_hit;
-  };
-  std::vector< RES > test_list;
-  for (int sample_idx = 0; sample_idx < file_list.size(); sample_idx++)
-  {
-	  string path = root_path + "//" + file_list[sample_idx].first;
-	  if (relpath_in_list != 0)
-		  path = file_list[sample_idx].first;
-	  cv::Mat img = cv::imread(path, 1);
-	  if (width_before_crop > 0 || height_before_crop > 0)
-	  {
-		  cv::Mat resized;
-		  cv::resize(img, resized, cv::Size(width_before_crop, height_before_crop));
 
-		  int dx = (width_before_crop - width_after_crop) / 2;
-		  int dy = (height_before_crop - height_after_crop) / 2;
-		  cv::Rect roi(dx, dy, width_after_crop, height_after_crop);
-		  img = resized(roi).clone();
-	  }
+	Classifier classifier(model_file, trained_file, mean_rgb);
 
-	  CHECK(!img.empty()) << "Unable to decode image " << path;
-	  std::vector<Prediction> predictions = classifier.Classify(img, 1);
+	classifier.SetGrayRatio(gray_ratio);
 
-	  /* Print the top N predictions. */
-	  bool hit_flag = false;
-	  float score = 0;
-	  for (size_t i = 0; i < predictions.size() && hit_flag == false; ++i) {
-		  Prediction p = predictions[i];
-		  hit_flag = p.first == file_list[sample_idx].second;
-		 // if (hit_flag)
-		  {
-			  score = p.second;
-		  }
-	  }
-	  RES res;
-	  res.path = file_list[sample_idx].first;
-	  res.flag_hit = hit_flag;
-	  res.score = score;
-	  test_list.push_back( res );
-  }
 
-  if (error_list_path != "")
-  {
-	  std::ofstream fout(error_list_path);
-	  assert(fout.is_open());
-	  for (int k = 0; k < test_list.size(); k++)
-	  {
-		  if (test_list[k].flag_hit == true)
-			  continue;
-		  if (relpath_in_list)
-			  fout << root_path + "/" + test_list[k].path <<"|"<<test_list[k].score<< std::endl;
-		  else
-			  fout << test_list[k].path <<"|"<<test_list[k].score<< std::endl;
-	  }
-	  fout.close();
-  }
+	std::vector<std::pair<std::string, int> > file_list;
+	{
+		std::ifstream infile(listfile);
+		std::string line;
+		size_t pos;
+		int label;
+		while (std::getline(infile, line)) {
+			pos = line.find_last_of(' ');
+			label = atoi(line.substr(pos + 1).c_str());
+			file_list.push_back(std::make_pair(line.substr(0, pos), label));
+		}
+	}
+	struct RES
+	{
+		string path;
+		float score;
+		bool flag_hit;
+	};
+	std::vector< RES > test_list;
+	for (int sample_idx = 0; sample_idx < file_list.size(); sample_idx++)
+	{
+		string path = root_path + "//" + file_list[sample_idx].first;
+		if (relpath_in_list == 0)
+			path = file_list[sample_idx].first;
+		cv::Mat img = cv::imread(path, 1);
+		if (width_before_crop > 0 || height_before_crop > 0)
+		{
+			cv::Mat resized;
+			cv::resize(img, resized, cv::Size(width_before_crop, height_before_crop));
 
-  std::map<int, int> class2num, class2hit;
-  for (int k = 0; k < test_list.size(); k++)
-  {
-	  string path = test_list[k].path;
-	  bool hit_flag = test_list[k].flag_hit;
-	  int label = file_list[k].second;
-	  CHECK(strcmp(path.c_str(), file_list[k].first.c_str()) == 0) << "unmatched compare " << path;
-	  std::map<int, int>::iterator itr = class2num.find(label);
-	  if (itr == class2num.end())
-	  {
-		  class2num[label] = 1;
-		  class2hit[label] = hit_flag == true;
-	  }
-	  else
-	  {
-		  class2num[label] += 1;
-		  class2hit[label] += (hit_flag == true);
-	  }
-  }
-  float total = 0, hit = 0;
-  std::cout << "recalling..." << std::endl;
-  for (int k = 0; k < class2num.size(); k++)
-  {
-	  std::cout << "class " << k << ":" << (float)(class2hit[k]) / class2num[k] << std::endl;
-	  total += class2num[k];
-	  hit += class2hit[k];
-  }
+			int dx = (width_before_crop - width_after_crop) / 2;
+			int dy = (height_before_crop - height_after_crop) / 2;
+			cv::Rect roi(dx, dy, width_after_crop, height_after_crop);
+			img = resized(roi).clone();
+		}
+
+		CHECK(!img.empty()) << "Unable to decode image " << path;
+		std::vector<Prediction> predictions = classifier.Classify(img, 1);
+
+		/* Print the top N predictions. */
+		bool hit_flag = false;
+		float score = 0;
+		for (size_t i = 0; i < predictions.size() && hit_flag == false; ++i) {
+			Prediction p = predictions[i];
+			hit_flag = p.first == file_list[sample_idx].second;
+			// if (hit_flag)
+			{
+				score = p.second;
+			}
+		}
+		RES res;
+		res.path = file_list[sample_idx].first;
+		res.flag_hit = hit_flag;
+		res.score = score;
+		test_list.push_back(res);
+	}
+
+	if (error_list_path != "")
+	{
+		std::ofstream fout(error_list_path);
+		assert(fout.is_open());
+		for (int k = 0; k < test_list.size(); k++)
+		{
+			if (test_list[k].flag_hit == true)
+				continue;
+			if (relpath_in_list)
+				fout << root_path + "/" + test_list[k].path << "|" << test_list[k].score << std::endl;
+			else
+				fout << test_list[k].path << "|" << test_list[k].score << std::endl;
+		}
+		fout.close();
+	}
+
+	std::map<int, int> class2num, class2hit;
+	for (int k = 0; k < test_list.size(); k++)
+	{
+		string path = test_list[k].path;
+		bool hit_flag = test_list[k].flag_hit;
+		int label = file_list[k].second;
+		CHECK(strcmp(path.c_str(), file_list[k].first.c_str()) == 0) << "unmatched compare " << path;
+		std::map<int, int>::iterator itr = class2num.find(label);
+		if (itr == class2num.end())
+		{
+			class2num[label] = 1;
+			class2hit[label] = hit_flag == true;
+		}
+		else
+		{
+			class2num[label] += 1;
+			class2hit[label] += (hit_flag == true);
+		}
+	}
+	float total = 0, hit = 0;
+	std::cout << "recalling..." << std::endl;
+	{
+		std::map<int, int>::iterator iter;
+		for (iter = class2num.begin(); iter != class2num.end(); iter++)
+		{
+			std::cout << "class " << iter->first << ":" << (float)(class2hit[iter->first]) / iter->second << std::endl;
+			total += iter->second;
+			hit += class2hit[iter->first];
+		}
+	}
   std::cout << "in total :" << hit / total << std::endl;
   return 0;
 
